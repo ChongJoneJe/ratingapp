@@ -52,7 +52,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'rateprofessor.urls'
+ROOT_URLCONF = 'rateprof.urls'
 
 TEMPLATES = [
     {
@@ -70,7 +70,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'rateprofessor.wsgi.application'
+WSGI_APPLICATION = 'rateprof.wsgi.application'
 
 
 # Database
