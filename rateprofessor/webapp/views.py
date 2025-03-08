@@ -15,9 +15,9 @@ from django.utils.decorators import method_decorator
 def home(request):
     return HttpResponse("Welcome to the Rate Professor App!")
 
-# --- Registration Endpoint ---
+# Registration
 class RegisterView(APIView):
-    permission_classes = [permissions.AllowAny]  # open endpoint
+    permission_classes = [permissions.AllowAny] 
     def post(self, request):
         username = request.data.get('username')
         email = request.data.get('email')
@@ -36,7 +36,7 @@ class RegisterView(APIView):
         return Response({'token': token.key}, status=status.HTTP_201_CREATED)
 
 
-# --- Login Endpoint ---
+# Login
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     def post(self, request):
@@ -51,28 +51,25 @@ class LoginView(APIView):
                             status=status.HTTP_401_UNAUTHORIZED)
 
 
+# Logout
 @method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        # Debug: log the received header
         auth_header = request.META.get("HTTP_AUTHORIZATION")
         print("Logout view received HTTP_AUTHORIZATION:", auth_header)
-
-        # Prefer using the token from request.auth (populated by TokenAuthentication)
-        token = request.auth
+        token = request.auth # request.auth token
         if token:
             token.delete()
             return Response(status=status.HTTP_200_OK)
         else:
-            # Fallback: try to get the token from the request body or query parameters
-            token_value = request.data.get("token") or request.GET.get("token")
-            print("Fallback token value from body/GET:", token_value)
-            if token_value:
+            token_request = request.data.get("token") or request.GET.get("token") # token from request body
+            print("Fallback token value from body/GET:", token_request)
+            if token_request:
                 try:
-                    token = Token.objects.get(key=token_value)
+                    token = Token.objects.get(key=token_request)
                     token.delete()
                     return Response(status=status.HTTP_200_OK)
                 except Token.DoesNotExist:
@@ -82,8 +79,8 @@ class LogoutView(APIView):
                                 status=status.HTTP_400_BAD_REQUEST)
 
 
-# --- List Module Instances Endpoint ---
-class ModuleInstanceList(APIView):
+# Module instances
+class ModuleInstanceView(APIView):
     permission_classes = [permissions.AllowAny]
     def get(self, request):
         instances = ModuleInstance.objects.all()
@@ -91,12 +88,12 @@ class ModuleInstanceList(APIView):
         return Response(serializer.data)
 
 
-# --- View Professor Ratings (Overall) ---
+# View overall ratings
 class ProfessorRatingsView(APIView):
     permission_classes = [permissions.AllowAny]
     def get(self, request):
         professors = Professor.objects.all()
-        response_data = []
+        rating_data = []
         for prof in professors:
             ratings = Rating.objects.filter(professor=prof)
             if ratings.exists():
@@ -104,15 +101,15 @@ class ProfessorRatingsView(APIView):
                 stars = "*" * avg_rating
             else:
                 stars = "Unrated"
-            response_data.append({
+            rating_data.append({
                 'professor': f"{prof.name} ({prof.professor_id})",
                 'rating': stars
             })
-        return Response(response_data)
+        return Response(rating_data)
 
 
-# --- Average Rating for Professor in a Specific Module ---
-class AverageRatingForModule(APIView):
+# Average rating for an instance
+class AverageRatingView(APIView):
     permission_classes = [permissions.AllowAny]
     def get(self, request, professor_id, module_code):
         ratings = Rating.objects.filter(
@@ -130,15 +127,14 @@ class AverageRatingForModule(APIView):
             'average_rating': stars
         })
 
-
+# Rate a professor
 @method_decorator(csrf_exempt, name='dispatch')
-class RateProfessor(APIView):
+class RateProfessorView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        # Debug: print the received Authorization header
-        auth_header = request.META.get("HTTP_AUTHORIZATION")
+        auth_header = request.META.get("HTTP_AUTHORIZATION") # debugging header
         print("RateProfessor received HTTP_AUTHORIZATION:", auth_header)
 
         professor_id = request.data.get("professor_id")
@@ -147,11 +143,10 @@ class RateProfessor(APIView):
         semester = request.data.get("semester")
         rating_value = request.data.get("rating")
 
-        # Validate all fields are provided
         if not all([professor_id, module_code, year, semester, rating_value]):
             return Response({"error": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Find the module instance
+        # module instance
         try:
             module_instance = ModuleInstance.objects.get(
                 module__code=module_code, year=year, semester=semester
@@ -159,18 +154,18 @@ class RateProfessor(APIView):
         except ModuleInstance.DoesNotExist:
             return Response({"error": "Module instance not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Find the professor
+        # professor
         try:
             professor = Professor.objects.get(professor_id=professor_id)
         except Professor.DoesNotExist:
             return Response({"error": "Professor not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check professor teaches the module instance
+        # links professor to module
         if not module_instance.professors.filter(professor_id=professor_id).exists():
             return Response({"error": "Professor does not teach this module instance."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        # Validate rating is an integer between 1 and 5
+        # rating star within range
         try:
             rating_value = int(rating_value)
             if rating_value < 1 or rating_value > 5:
@@ -179,12 +174,11 @@ class RateProfessor(APIView):
             return Response({"error": "Rating must be an integer between 1 and 5."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        # Check that the user hasn't already rated this professor for this module instance
+        # user hasnt rated this instance
         if Rating.objects.filter(user=request.user, module_instance=module_instance, professor=professor).exists():
             return Response({"error": "You have already rated this professor for this module instance."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        # Create the rating
         rating_obj = Rating.objects.create(
             user=request.user,
             module_instance=module_instance,

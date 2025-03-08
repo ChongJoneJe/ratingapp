@@ -1,12 +1,10 @@
-#!/usr/bin/env python3
 import requests
 
-# Replace <your-username> with your actual PythonAnywhere username.
 BASE_URL = "http://127.0.0.1:8000/api/"
 session = requests.Session()
 
 def register():
-    print("=== Register a New User ===")
+    print("Register a New User")
     username = input("Username: ").strip()
     email = input("Email: ").strip()
     password = input("Password: ").strip()
@@ -21,7 +19,7 @@ def register():
         print("Registration failed:", error)
 
 def login():
-    print("=== User Login ===")
+    print("User Login")
     username = input("Username: ").strip()
     password = input("Password: ").strip()
     data = {"username": username, "password": password}
@@ -39,13 +37,10 @@ def logout():
     if not token:
         print("No authentication token found. Please log in first.")
         return
-
-    print("Session headers before logout:", session.headers)
-    token_value = token.split(" ")[1]  # extract the token string
+    # print("Session headers before logout:", session.headers)
+    token_request = token.split(" ")[1] 
     headers = {"Authorization": token}
-    data = {"token": token_value}
-    
-    # Use requests.post() explicitly with headers and JSON body
+    data = {"token": token_request}
     response = requests.post(BASE_URL + "logout/", headers=headers, json=data)
     if response.status_code == 200:
         session.cookies.clear()
@@ -89,16 +84,23 @@ def average_rating():
     professor_id = input("Enter professor id: ").strip()
     module_code = input("Enter module code: ").strip()
     url = f"{BASE_URL}average/{professor_id}/{module_code}/"
-    response = session.get(url)
+    token = session.headers.get("Authorization", "").split(" ")[1] if "Authorization" in session.headers else None
+    headers = {"Authorization": f"Token {token}"} if token else {}
+    response = requests.get(url, headers=headers)
     if response.status_code == 200:
-        data = response.json()
-        avg_rating = data.get("average_rating", "Unrated")
-        print(f"The average rating for Professor {data.get('professor', professor_id)} in module {data.get('module', module_code)} is {avg_rating}")
+        try:
+            data = response.json()
+            avg_rating = data.get("average_rating", "Unrated")
+            print(f"The average rating for Professor {data.get('professor', professor_id)} in module {data.get('module', module_code)} is {avg_rating}")
+        except requests.exceptions.JSONDecodeError:
+            print("Error: Response content is not valid JSON")
+            print("Response content:", response.text)
     else:
-        print("Error retrieving average rating:", response.json())
+        print("Error retrieving average rating:", response.text)
 
 def rate_professor():
-    if "Authorization" not in session.headers:
+    token = session.headers.get("Authorization", "").split(" ")[1] if "Authorization" in session.headers else None
+    if not token:
         print("You must be logged in to rate a professor.")
         return
     professor_id = input("Enter professor id: ").strip()
@@ -113,27 +115,27 @@ def rate_professor():
         "semester": semester,
         "rating": rating_value
     }
-    response = session.post(BASE_URL + "rate/", json=data)
+    headers = {"Authorization": f"Token {token}"}
+    response = requests.post(BASE_URL + "rate/", json=data, headers=headers)
     if response.status_code == 201:
         print("Rating submitted successfully!")
     else:
-        print("Error submitting rating:", response.json())
+        print("Error submitting rating:", response.text)
 
-def help_menu():
+def main_menu():
     print("Available commands:")
-    print("  register  - Register a new user")
-    print("  login     - Log in to your account")
-    print("  logout    - Log out of your account")
-    print("  list      - List all module instances")
-    print("  view      - View overall professor ratings")
-    print("  average   - View average rating for a professor in a module")
-    print("  rate      - Rate a professor for a module instance")
-    print("  help      - Show this help menu")
-    print("  exit      - Exit the client")
+    print(" register - Register a new user")
+    print(" login    - Log in to your account")
+    print(" logout   - Log out of your account")
+    print(" list     - List all module instances")
+    print(" view     - View overall professor ratings")
+    print(" average  - View average rating for a professor in a module")
+    print(" rate     - Rate a professor for a module instance")
+    print(" exit     - Exit the client")
 
 def main():
     print("Welcome to the Professor Rating Client")
-    help_menu()
+    main_menu()
     while True:
         command = input(">> ").strip().lower()
         if command == "register":
@@ -150,13 +152,11 @@ def main():
             average_rating()
         elif command == "rate":
             rate_professor()
-        elif command in ("help", "?"):
-            help_menu()
         elif command in ("exit", "quit"):
             print("Exiting the client.")
             break
         else:
-            print("Unknown command. Type 'help' for a list of commands.")
+            print("Unknown command. Please try again.")
 
 if __name__ == "__main__":
     main()
